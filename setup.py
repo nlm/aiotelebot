@@ -19,5 +19,10 @@ setup(
     ],
     install_requires = [
         'aiohttp',
-    ]
+    ],
+    entry_points = {
+        'console_scripts': [
+            'telebot=telebot.__main__:main',
+        ]
+    }
 )

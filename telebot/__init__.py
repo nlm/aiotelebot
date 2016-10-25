@@ -1,12 +1,14 @@
 import asyncio
 import aiohttp
 import re
+import time
+from argparse import ArgumentParser
 
-import collections
+from .objects import *
 
-TelegramUpdate = collections.namedtuple('TelegramUpdate', ['update_id', 'message', 'edited_message', 'inline_query', 'chosen_inline_result', 'callback_query'])
+class TelegramBotApiError(Exception): pass
 
-class TelegramBotAPIClient(object):
+class TelegramBotApiClient(object):
 
     _base_url = 'https://api.telegram.org'
 
@@ -16,35 +18,33 @@ class TelegramBotAPIClient(object):
         if base_url is not None:
             self._base_url = base_url
 
-    @asyncio.coroutine
-    def get(self, method, params=None):
-        result = yield from self._session.get('{0}/bot{1}/{2}'
-   	                                          .format(self._base_url,
-                                                      self._token,
-                                                      method),
-                                              params=params)
-        return result
-
-    @asyncio.coroutine
-    def post(self, method, params=None):
-        result = yield from self._session.post('{0}/bot{1}/{2}'
-   	                                           .format(self._base_url,
-                                                       self._token,
-                                                       method),
-                                               params=params)
-        return result
-
-    def getUpdates(self, *, timeout=600, limit=100):
-        update_id = 0
-        while True:
-            response = yield from self._client.get('getUpdates',
-                                                   params={'timeout': 600,
-                                                           'limit': 100,
-                                                           'offset': update_id})
-
     def __del__(self):
         self._session.close()
 
+    # HTTP Base Methods
+
+    @asyncio.coroutine
+    def query(self, http_method, api_method, *args, **kwargs):
+        response = yield from self._session.request(http_method,
+                                                    '{0}/bot{1}/{2}'
+                                                    .format(self._base_url,
+                                                            self._token,
+                                                            api_method),
+                                                    *args, **kwargs)
+        try:
+            data = yield from response.json()
+        except json.JSONDecodeError as exc:
+            raise TelegramBotApiError(exc.value)
+        return data
+
+    # Telegram API Methods
+
+    def getUpdates(self, update_id, *, timeout=600, limit=100):
+        return (yield from self.query('GET', 'getUpdates',
+                                      params={'timeout': timeout,
+                                              'limit': limit,
+                                              'offset': update_id},
+                                      timeout=timeout + 5))
 
 class TeleBot(object):
 
@@ -53,36 +53,38 @@ class TeleBot(object):
         self._commands = dict()
 
     def register_command(self, name, coroutine):
-        assert asyncio.iscoroutine(coroutine)
+        assert asyncio.iscoroutinefunction(coroutine)
         assert re.match('^\w+$', name)
         self._commands[name] = coroutine
 
     def get_command(self, name):
         return self._commands[name]
 
+    @staticmethod
+    def _extract_updates(data):
+        if data.get('ok', False) is True:
+            for item in data.get('result', []):
+                data = object_defaults(TelegramUpdate)
+                data.update(item)
+                yield TelegramUpdate(**data)
+
     @asyncio.coroutine
     def watch_updates(self):
         update_id = 0
+        last_query = time.time()
         while True:
-            response = yield from self._client.get('getUpdates', params={'timeout': 600,
-                                                                         'limit': 100,
-                                                                         'offset': update_id})
-            try:
-                data = yield from response.json()
-                update_id = yield from handle_response(data)
-            except json.JSONDecodeError:
-                text = yield from response.text()
-                print('decode error: {}'.format(text))
-            yield from asyncio.sleep(2)
+            print('waiting for an update')
+            data = yield from self._client.getUpdates(update_id)
+            print('elapsed_time={}'.format(time.time() - last_query))
+            for update in self._extract_updates(data):
+                print(update)
+                #yield from update_handler(update)
+                if update.update_id >= update_id:
+                    update_id = update.update_id + 1
+            #print('update_id = {}'.format(update_id))
+            #yield from asyncio.sleep(4)
 
     @asyncio.coroutine
-    def run_forever(self):
-        yield from self._client.watch_updates()
-
-
-
-def main():
-	pass
-
-if __name__ == '__main__':
-	main()
+    def work(self):
+        print('in work')
+        yield from self.watch_updates()
