@@ -19,6 +19,7 @@ class TelegramBotApiClient(object):
     def __init__(self, token, base_url=None):
         self._token = token
         self._session = aiohttp.ClientSession()
+        self._log = logging.getLogger(__name__)
         if base_url is not None:
             self._base_url = base_url
 
@@ -29,18 +30,18 @@ class TelegramBotApiClient(object):
 
     @asyncio.coroutine
     def query(self, http_method, api_method, *args, **kwargs):
-        logging.debug('doing query {} {}'.format(http_method, api_method))
+        self._log.debug('doing query {} {}'.format(http_method, api_method))
         response = yield from self._session.request(http_method,
                                                     '{0}/bot{1}/{2}'
                                                     .format(self._base_url,
                                                             self._token,
                                                             api_method),
                                                     *args, **kwargs)
-        logging.debug('query {} {} ok'.format(http_method, api_method))
+        self._log.debug('query {} {} ok'.format(http_method, api_method))
         try:
-            logging.debug('decoding response'.format(http_method, api_method))
+            self._log.debug('decoding response'.format(http_method, api_method))
             data = yield from response.json()
-            logging.debug('response ok'.format(http_method, api_method))
+            self._log.debug('response ok'.format(http_method, api_method))
         except json.JSONDecodeError as exc:
             raise TelegramBotApiError(exc.value)
         return data
@@ -147,12 +148,12 @@ class TeleBot(object):
         update_id = 0
         last_query = time.time()
         while True:
-            logging.debug('waiting for updates')
+            self._log.debug('waiting for updates')
             data = yield from self._client.getUpdates(update_id=update_id)
-            logging.debug('elapsed_time={}'.format(time.time() - last_query))
+            self._log.debug('elapsed_time={}'.format(time.time() - last_query))
             last_query = time.time()
             for update in self._extract_updates(data):
-                logging.debug('update={}'.format(update))
+                self._log.debug('update={}'.format(update))
                 yield from self.handle_update(update)
                 if update.update_id >= update_id:
                     update_id = update.update_id + 1
@@ -161,5 +162,5 @@ class TeleBot(object):
 
     @asyncio.coroutine
     def work(self):
-        logging.info('starting work')
+        self._log.info('starting work')
         yield from self.watch_updates()

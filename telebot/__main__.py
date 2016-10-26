@@ -34,11 +34,12 @@ def main(arguments=None):
     bot = TeleBot(args.telegram_bot_api_token)
     bot.register_command('start', start)
     bot.register_command('hello', hello)
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
 
     loop = asyncio.get_event_loop()
     if args.debug:
         loop.set_debug(True)
-        logging.basicConfig(level=logging.DEBUG)
         asyncio.ensure_future(ticker(1))
     loop.run_until_complete(bot.work())
 
