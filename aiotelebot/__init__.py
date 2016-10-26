@@ -3,6 +3,7 @@ import re
 import time
 import logging
 import inspect
+import collections
 from random import random
 from .objects import *
 from .api import TelegramBotApiClient, TelegramBotApiError
@@ -15,10 +16,12 @@ class TeleBot(object):
         self._client = TelegramBotApiClient(token)
         self._commands = dict()
         self._chats = dict()
+        self._help = dict()
         self._log.debug('self-registering')
         for name, function in self._get_commands():
             self.register_command(name, function)
         self._log.debug('end self-registering')
+        self._log.debug(self._help)
 
     def _get_commands(self):
         for key, value in inspect.getmembers(self, inspect.isgeneratorfunction):
@@ -30,10 +33,21 @@ class TeleBot(object):
         assert re.match('^\w+$', name)
         self._log.debug('registering command {} -> {}'.format(name, generator))
         self._commands[name] = generator
+        self._help[name] = inspect.getdoc(generator)
 
     def register_default_command(self, generator):
-        assert asyncio.isgeneratorfunction(generator)
+        assert inspect.isgeneratorfunction(generator)
         self._commands['__default__'] = generator
+
+    def cmd_help(self, args):
+        """
+        get help about functions
+        """
+        return '\n'.join(['Sure! Here\'s what i can do:', ''] +
+                         ['/{} - {}'.format(func, doc or '(no description)')
+                          for func, doc in sorted(self._help.items())
+                          if not (func.startswith('_') or func in ('start', 'stop'))])
+        yield
 
     def get_command(self, name):
         return self._commands[name]
@@ -42,7 +56,7 @@ class TeleBot(object):
         context = None
         text = yield
         while True:
-            print('handling text "{}" (context={})'.format(text, context))
+            self._log.debug('handling text "{}" (context={})'.format(text, context))
             try:
                 # New command
                 if text.startswith('/'):
@@ -79,17 +93,35 @@ class TeleBot(object):
         Handles an update. Every chat gets a different context,
         therefore a different handler
         '''
-        print('handle_update')
+        self._log.debug('handle_update')
+        if update.message is None:
+            self._log.debug('message_is_empty')
+            return
         chat_id = update.message['chat']['id']
         if chat_id not in self._chats:
             self._chats[chat_id] = self.update_handler()
             next(self._chats[chat_id])
         update_handler = self._chats[chat_id]
+        # XXX: change this ?
         answer = update_handler.send(update.message['text'])
-        yield from asyncio.sleep(random() * 1)
+        self._log.debug('ANSWER={} TYPE={}'.format(answer, type(answer)))
         if answer is not None:
-            self._log.debug('sending answer: {}'.format(answer))
-            self._log.debug((yield from self._client.sendMessage(chat_id, answer)))
+            yield from asyncio.sleep(0.5) # safety net
+            if isinstance(answer, str):
+                yield from self._send_message(chat_id, answer)
+            elif isinstance(answer, collections.Iterable):
+                for message in answer:
+                    yield from self._send_message(chat_id, message)
+                    yield from asyncio.sleep(1)
+            else:
+                self._log.debug('bad answer type: {}'.format(answer))
+        else:
+            self._log.debug('no answer to send')
+
+    @asyncio.coroutine
+    def _send_message(self, chat_id, message):
+        self._log.debug('sending message {}'.format(message))
+        return (yield from self._client.sendMessage(chat_id, message))
 
     @staticmethod
     def _extract_updates(data):
@@ -98,6 +130,12 @@ class TeleBot(object):
                 data = object_defaults(TelegramUpdate)
                 data.update(item)
                 yield TelegramUpdate(**data)
+
+#    @asyncio.coroutine
+#    def delayed_answer(messages, delay=1):
+#        for message in messages:
+#            yield from asyncio.sleep(delay)
+#            yield message
 
     @asyncio.coroutine
     def watch_updates(self):
