@@ -1,89 +1,77 @@
 import asyncio
-import aiohttp
 import re
 import time
 import logging
+import inspect
 from random import random
-from argparse import ArgumentParser
-
 from .objects import *
+from .api import TelegramBotApiClient, TelegramBotApiError
 
-
-class TelegramBotApiError(Exception): pass
-
-
-class TelegramBotApiClient(object):
-
-    _base_url = 'https://api.telegram.org'
-
-    def __init__(self, token, base_url=None):
-        self._token = token
-        self._session = aiohttp.ClientSession()
-        self._log = logging.getLogger(__name__)
-        if base_url is not None:
-            self._base_url = base_url
-
-    def __del__(self):
-        self._session.close()
-
-    # HTTP Base Methods
-
-    @asyncio.coroutine
-    def query(self, http_method, api_method, *args, **kwargs):
-        self._log.debug('doing query {} {}'.format(http_method, api_method))
-        response = yield from self._session.request(http_method,
-                                                    '{0}/bot{1}/{2}'
-                                                    .format(self._base_url,
-                                                            self._token,
-                                                            api_method),
-                                                    *args, **kwargs)
-        self._log.debug('query {} {} ok'.format(http_method, api_method))
-        try:
-            self._log.debug('decoding response'.format(http_method, api_method))
-            data = yield from response.json()
-            self._log.debug('response ok'.format(http_method, api_method))
-        except json.JSONDecodeError as exc:
-            raise TelegramBotApiError(exc.value)
-        return data
-
-    # Telegram API Methods
-    # TODO: enhance these so they return Telegram objects
-    # instead of just the json-parsed data
-
-    def getMe(self):
-        return (yield from self.query('GET', 'getMe'))
-
-    def getUpdates(self, *, update_id=0, timeout=600, limit=100):
-        return (yield from self.query('GET', 'getUpdates',
-                                      params={'timeout': timeout,
-                                              'limit': limit,
-                                              'offset': update_id}))
-                                      #timeout=timeout + 5))
-
-    def sendMessage(self, chat_id, text, *, parse_mode=None,
-                    disable_web_page_preview=False,
-                    disable_notification=False,
-                    reply_to_message_id=None, reply_markup=None):
-        return (yield from self.query('POST', 'sendMessage',
-                                      params={'chat_id': chat_id,
-                                              'text': text,
-                                              'reply_to_message_id':
-                                              reply_to_message_id}))
 
 class TeleBot(object):
 
     def __init__(self, token):
+        self._log = logging.getLogger(__name__)
         self._client = TelegramBotApiClient(token)
         self._commands = dict()
         self._chats = dict()
+        self._log.debug('self-registering')
+        for name, function in self._get_commands():
+            self.register_command(name, function)
+        self._log.debug('end self-registering')
 
-    def register_command(self, name, coroutine):
-        assert asyncio.iscoroutinefunction(coroutine)
+    def _get_commands(self):
+        for key, value in inspect.getmembers(self, inspect.isgeneratorfunction):
+            if re.match('cmd_\w+$', key):
+                yield (key.replace('cmd_', ''), value)
+
+    def register_command(self, name, generator):
+        assert inspect.isgeneratorfunction(generator)
         assert re.match('^\w+$', name)
-        self._commands[name] = coroutine
+        self._log.debug('registering command {} -> {}'.format(name, generator))
+        self._commands[name] = generator
+
+    def register_default_command(self, generator):
+        assert asyncio.isgeneratorfunction(generator)
+        self._commands['__default__'] = generator
 
     def get_command(self, name):
         return self._commands[name]
+
+    def update_handler(self):
+        context = None
+        text = yield
+        while True:
+            print('handling text "{}" (context={})'.format(text, context))
+            try:
+                # New command
+                if text.startswith('/'):
+                    try:
+                        cmd_gen = self.get_command(text[1:])
+                        args = text.split()[1:]
+                        if context is not None:
+                            context.close()
+                        context = cmd_gen(args)
+                        text = yield next(context)
+                    except KeyError:
+                        text = yield 'unknown command'
+                # Followup of an existing command
+                elif context is not None:
+                    self._log.debug('sending {} in context {}'.format(text, context))
+                    text = yield context.send(text)
+                # Text outside a command context
+                else:
+                    try:
+                        cmd_gen = self.get_command('__default__')
+                        args = text.split()
+                        context = cmd_gen(args)
+                        text = yield next(context)
+                    except KeyError:
+                        text = yield
+            except StopIteration as stopiter:
+                self._log.debug('end of command {}'.format(context))
+                context = None
+                text = yield stopiter.value
 
     @asyncio.coroutine
     def handle_update(self, update):
@@ -98,39 +86,10 @@ class TeleBot(object):
             next(self._chats[chat_id])
         update_handler = self._chats[chat_id]
         answer = update_handler.send(update.message['text'])
-        yield from asyncio.sleep(random() * 2)
-        logging.debug('sending answer: {}'.format(answer))
-        logging.debug((yield from self._client.sendMessage(chat_id, answer)))
-
-    def update_handler(self):
-        context = None
-        text = yield
-        while True:
-            print('handling {}'.format(text))
-            try:
-                # New command
-                if text.startswith('/'):
-                    try:
-                        cmd_coro = self.get_command(text[1:])
-                        if context is not None:
-                            context.close()
-                        # FIXME: actually incorrect, as we need to handle
-                        # command arguments
-                        context = cmd_coro()
-                        text = yield next(context)
-                    except KeyError:
-                        text = yield 'unknown command'
-                # Followup of an existing command
-                elif context is not None:
-                    text = yield context.send(text)
-                # Text outside a command context
-                else:
-                    text = yield 'this lacks context'
-            except StopIteration:
-                print('end of command {}'.format(context))
-                context = None
-                prompt = None
-                #text = yield
+        yield from asyncio.sleep(random() * 1)
+        if answer is not None:
+            self._log.debug('sending answer: {}'.format(answer))
+            self._log.debug((yield from self._client.sendMessage(chat_id, answer)))
 
     @staticmethod
     def _extract_updates(data):
