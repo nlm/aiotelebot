@@ -1,7 +1,7 @@
 from setuptools import setup,find_packages
 
 setup(
-    name = "telebot",
+    name = "aiotelebot",
     version = "0.1a1",
     packages = find_packages(),
     author = "Nicolas Limage",
@@ -9,7 +9,7 @@ setup(
     description = "telegram bot library",
     license = "MIT",
     keywords = "telegram bot",
-    url = "https://github.com/nlm/telebot",
+    url = "https://github.com/nlm/aiotelebot",
     classifiers = [
         'Development Status :: 1 - Alpha',
         'Environment :: Console',
