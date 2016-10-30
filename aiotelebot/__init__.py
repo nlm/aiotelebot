@@ -5,7 +5,7 @@ import logging
 import inspect
 import collections
 from random import random
-from .objects import *
+from .api.objects import *
 from .api import TelegramBotApiClient, TelegramBotApiError
 
 
