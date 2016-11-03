@@ -2,7 +2,7 @@ import os
 import asyncio
 import logging
 from argparse import ArgumentParser
-from .__init__ import TeleBot
+from aiotelebot import TeleBot
 
 class DemoBot(TeleBot):
 

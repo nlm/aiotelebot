@@ -127,9 +127,7 @@ class TeleBot(object):
     def _extract_updates(data):
         if data.get('ok', False) is True:
             for item in data.get('result', []):
-                data = object_defaults(TelegramUpdate)
-                data.update(item)
-                yield TelegramUpdate(**data)
+                yield Update(item).data
 
 #    @asyncio.coroutine
 #    def delayed_answer(messages, delay=1):
