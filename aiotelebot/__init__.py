@@ -7,7 +7,7 @@ import collections
 from random import random
 from .api.objects import *
 from .api import TelegramBotApiClient, TelegramBotApiError
-
+from .handlers import DefaultUpdateHandler
 
 class TeleBot(object):
 
