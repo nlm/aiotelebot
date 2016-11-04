@@ -1,6 +1,8 @@
+from __future__ import absolute_import
 import asyncio
 import aiohttp
 import logging
+from .objects import *
 
 
 class TelegramBotApiError(Exception): pass
@@ -48,11 +50,11 @@ class TelegramBotApiClient(object):
         return (yield from self.query('GET', 'getMe'))
 
     def getUpdates(self, *, update_id=0, timeout=600, limit=100):
-        return (yield from self.query('GET', 'getUpdates',
+        data = yield from self.query('GET', 'getUpdates',
                                       params={'timeout': timeout,
                                               'limit': limit,
-                                              'offset': update_id}))
-                                      #timeout=timeout + 5))
+                                              'offset': update_id})
+        return GetUpdatesResponse(data)
 
     def sendMessage(self, chat_id, text, *, parse_mode=None,
                     disable_web_page_preview=False,

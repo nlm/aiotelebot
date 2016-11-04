@@ -200,3 +200,11 @@ Update = p('Update', {'update_id': int,
                       Optional('chosen_inline_result'): Use(ChosenInlineResult),
                       Optional('callback_query'): Use(CallbackQuery)})
 
+# API Response Objects
+
+APIResponse = p('APIResponse', {'ok': bool,
+                                'result': object})
+
+GetUpdatesResponse = p('GetUpdatesReponse', {'ok': bool,
+                                             'result': [Update]})
+
