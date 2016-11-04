@@ -1,12 +1,9 @@
 import asyncio
-from abc import ABCMeta, abstractmethod
+from .abc import UpdateHandler
 
-class UpdateHandler(metaclass=ABCMeta):
+class AsyncUpdateHandler(UpdateHandler):
 
-    @abstractmethod
     def handle_update(self, update):
         pass
 
-
-class DefaultAsyncUpdateHandler(UpdateHandler):
-    pass
+DefaultUpdateHandler = AsyncUpdateHandler

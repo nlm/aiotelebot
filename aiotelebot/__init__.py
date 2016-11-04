@@ -127,7 +127,7 @@ class TeleBot(object):
     def _extract_updates(data):
         if data.get('ok', False) is True:
             for item in data.get('result', []):
-                yield Update(item).data
+                yield item
 
 #    @asyncio.coroutine
 #    def delayed_answer(messages, delay=1):
@@ -142,20 +142,35 @@ class TeleBot(object):
         '''
         update_id = 0
         last_query = time.time()
+        throttle = 1
         while True:
             self._log.debug('waiting for updates')
-            data = yield from self._client.getUpdates(update_id=update_id)
+            # API Query
+            try:
+                result = yield from self._client.getUpdates(update_id=update_id)
+            except TelegramBotApiError as err:
+                self._log.debug('query error ok={}'.format(result['ok']))
+                yield from asyncio.sleep(throttle)
+                throttle *= 2
+                continue
             self._log.debug('elapsed_time={}'.format(time.time() - last_query))
             last_query = time.time()
+            # Checking Result
+            if result['ok'] is not True:
+                self._log.debug('api returned ok={}'.format(result['ok']))
+                yield from asyncio.sleep(throttle)
+                throttle *= 2
+                continue
+            # Extracting Updates
             for update in self._extract_updates(data):
                 self._log.debug('update={}'.format(update))
                 yield from self.handle_update(update)
-                if update.update_id >= update_id:
-                    update_id = update.update_id + 1
+                if update['update_id'] >= update_id:
+                    update_id = update['update_id'] + 1
             #print('update_id = {}'.format(update_id))
             #yield from asyncio.sleep(4)
 
     @asyncio.coroutine
     def work(self):
         self._log.info('starting work')
-        yield from self.watch_updates()
+        yield from asyncio.wait([self.watch_updates()])
