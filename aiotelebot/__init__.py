@@ -8,14 +8,56 @@ from random import random
 from .api.objects import *
 from .api import TelegramBotApiClient, TelegramBotApiError
 from .core import TelegramBotCore
-from .handlers import DefaultUpdateHandler
 
-class TeleBot(object):
+class TelegramBot(object):
 
     def __init__(self, token):
+        '''
+        initializes the bot
+        '''
         self._log = logging.getLogger(__name__)
         self._client = TelegramBotApiClient(token)
-        self._core = TelegramBotCore()
+        self._core = TelegramBotCore(self, self._client)
+
+    @asyncio.coroutine
+    def watch_updates(self):
+        '''
+        Polls updates from Telegram and handle them
+        '''
+        update_id = 0
+        last_query = time.time()
+        throttle = 1
+        while True:
+            self._log.debug('waiting for updates')
+            # API Query
+            try:
+                result = yield from self._client.getUpdates(update_id=update_id)
+            except TelegramBotApiError as err:
+                self._log.debug('query error ok={}'.format(result['ok']))
+                yield from asyncio.sleep(throttle)
+                throttle *= 2
+                continue
+            self._log.debug('elapsed_time={}'.format(time.time() - last_query))
+            last_query = time.time()
+            # Checking Result
+            if result['ok'] is not True:
+                self._log.debug('api returned ok={}'.format(result['ok']))
+                yield from asyncio.sleep(throttle)
+                throttle *= 2
+                continue
+            # Extracting Updates
+            for update in result['result']:
+                self._log.debug('update={}'.format(update))
+                yield from self._core.handle_update(update)
+                if update['update_id'] >= update_id:
+                    update_id = update['update_id'] + 1
+            # Success, reset throttling
+            throttle = 1
+
+    @asyncio.coroutine
+    def work(self):
+        self._log.info('starting work')
+        yield from asyncio.wait([self.watch_updates()])
 
 #        self._chats = dict()
 #        self._help = dict()
@@ -54,40 +96,40 @@ class TeleBot(object):
 #    def get_command(self, name):
 #        return self._commands[name]
 
-    def update_handler(self):
-        context = None
-        text = yield
-        while True:
-            self._log.debug('handling text "{}" (context={})'.format(text, context))
-            try:
-                # New command
-                if text.startswith('/'):
-                    try:
-                        cmd_gen = self.get_command(text[1:])
-                        args = text.split()[1:]
-                        if context is not None:
-                            context.close()
-                        context = cmd_gen(args)
-                        text = yield next(context)
-                    except KeyError:
-                        text = yield 'unknown command'
-                # Followup of an existing command
-                elif context is not None:
-                    self._log.debug('sending {} in context {}'.format(text, context))
-                    text = yield context.send(text)
-                # Text outside a command context
-                else:
-                    try:
-                        cmd_gen = self.get_command('__default__')
-                        args = text.split()
-                        context = cmd_gen(args)
-                        text = yield next(context)
-                    except KeyError:
-                        text = yield
-            except StopIteration as stopiter:
-                self._log.debug('end of command {}'.format(context))
-                context = None
-                text = yield stopiter.value
+#    def update_handler(self):
+#        context = None
+#        text = yield
+#        while True:
+#            self._log.debug('handling text "{}" (context={})'.format(text, context))
+#            try:
+#                # New command
+#                if text.startswith('/'):
+#                    try:
+#                        cmd_gen = self.get_command(text[1:])
+#                        args = text.split()[1:]
+#                        if context is not None:
+#                            context.close()
+#                        context = cmd_gen(args)
+#                        text = yield next(context)
+#                    except KeyError:
+#                        text = yield 'unknown command'
+#                # Followup of an existing command
+#                elif context is not None:
+#                    self._log.debug('sending {} in context {}'.format(text, context))
+#                    text = yield context.send(text)
+#                # Text outside a command context
+#                else:
+#                    try:
+#                        cmd_gen = self.get_command('__default__')
+#                        args = text.split()
+#                        context = cmd_gen(args)
+#                        text = yield next(context)
+#                    except KeyError:
+#                        text = yield
+#            except StopIteration as stopiter:
+#                self._log.debug('end of command {}'.format(context))
+#                context = None
+#                text = yield stopiter.value
 
 #    @asyncio.coroutine
 #    def handle_update(self, update):
@@ -137,42 +179,3 @@ class TeleBot(object):
 #            yield from asyncio.sleep(delay)
 #            yield message
 
-    @asyncio.coroutine
-    def watch_updates(self):
-        '''
-        Polls updates from Telegram and handle them
-        '''
-        update_id = 0
-        last_query = time.time()
-        throttle = 1
-        while True:
-            self._log.debug('waiting for updates')
-            # API Query
-            try:
-                result = yield from self._client.getUpdates(update_id=update_id)
-            except TelegramBotApiError as err:
-                self._log.debug('query error ok={}'.format(result['ok']))
-                yield from asyncio.sleep(throttle)
-                throttle *= 2
-                continue
-            self._log.debug('elapsed_time={}'.format(time.time() - last_query))
-            last_query = time.time()
-            # Checking Result
-            if result['ok'] is not True:
-                self._log.debug('api returned ok={}'.format(result['ok']))
-                yield from asyncio.sleep(throttle)
-                throttle *= 2
-                continue
-            # Extracting Updates
-            for update in result['result']:
-                self._log.debug('update={}'.format(update))
-                yield from self._core.handle_update(update)
-                if update['update_id'] >= update_id:
-                    update_id = update['update_id'] + 1
-            # Success, reset throttling
-            throttle = 1
-
-    @asyncio.coroutine
-    def work(self):
-        self._log.info('starting work')
-        yield from asyncio.wait([self.watch_updates()])

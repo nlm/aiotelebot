@@ -35,8 +35,9 @@ class TelegramBotCore(object):
             else:
                 chat = self._chats[chat_id]
             result = chat.send(message)
+            # do something with the result
 
     @asyncio.coroutine
     def handle_update(self, update):
         yield from asyncio.sleep(0)
-        return self._dispatcher.send(update)
+        self._dispatcher.send(update)
