@@ -3,23 +3,20 @@ import asyncio
 import logging
 from argparse import ArgumentParser
 from aiotelebot import TelegramBot
+from aiotelebot.api import TelegramBotApiClient
+from aiotelebot.core import TelegramBotCommandCore
 
-class DemoBot(TelegramBot):
-    pass
 
-#    def cmd_start(self, args):
-#        return "Let's go !"
-#
-#    def cmd_notgenerator(self):
-#        pass
-#
-#    def cmd_hello(self, args):
-#        name = yield 'Hello, what is your name ?'
-#        return 'Nice to meet you, {} !'.format(name)
-#
-#    def cmd_cancel(self, args):
-#        return 'ok, canceled'
-#        yield # hack to make this a generator
+class DemoCore(TelegramBotCommandCore):
+
+    def cmd_hello(self, args):
+        name = yield 'Hello, what is your name ?'
+        return 'Nice to meet you, {} !'.format(name)
+
+    def cmd_cancel(self, args):
+        return 'ok, canceled'
+        yield # hack to make this a generator
+
 
 def ticker(interval=1):
     while True:
@@ -42,13 +39,15 @@ def main(arguments=None):
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
 
-    loop = asyncio.get_event_loop()
-    if args.debug:
-        loop.set_debug(True)
-        asyncio.ensure_future(ticker(1))
+    api_client = TelegramBotApiClient(args.telegram_bot_api_token)
+    core = DemoCore(api_client)
+    bot = TelegramBot(api_client, core)
 
-    bot = DemoBot(args.telegram_bot_api_token)
-    loop.run_until_complete(bot.work())
+    #loop = asyncio.get_event_loop()
+    #if args.debug:
+    #    loop.set_debug(True)
+    #    asyncio.ensure_future(ticker(1))
+    bot.run_standalone()
 
 if __name__ == '__main__':
     main()
