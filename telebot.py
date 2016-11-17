@@ -2,23 +2,24 @@ import os
 import asyncio
 import logging
 from argparse import ArgumentParser
-from aiotelebot import TeleBot
+from aiotelebot import TelegramBot
 
-class DemoBot(TeleBot):
+class DemoBot(TelegramBot):
+    pass
 
-    def cmd_start(self, args):
-        return "Let's go !"
-
-    def cmd_notgenerator(self):
-        pass
-
-    def cmd_hello(self, args):
-        name = yield 'Hello, what is your name ?'
-        return 'Nice to meet you, {} !'.format(name)
-
-    def cmd_cancel(self, args):
-        return 'ok, canceled'
-        yield # hack to make this a generator
+#    def cmd_start(self, args):
+#        return "Let's go !"
+#
+#    def cmd_notgenerator(self):
+#        pass
+#
+#    def cmd_hello(self, args):
+#        name = yield 'Hello, what is your name ?'
+#        return 'Nice to meet you, {} !'.format(name)
+#
+#    def cmd_cancel(self, args):
+#        return 'ok, canceled'
+#        yield # hack to make this a generator
 
 def ticker(interval=1):
     while True:
