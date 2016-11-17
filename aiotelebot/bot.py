@@ -61,9 +61,21 @@ class TelegramBot(object):
         self._log.info('starting work')
         yield from asyncio.gather(self.watch_updates())
 
-#    @asyncio.coroutine
-#    def delayed_answer(messages, delay=1):
-#        for message in messages:
-#            yield from asyncio.sleep(delay)
-#            yield message
-
+    def run_standalone(self):
+        '''
+        run a standalone version of the bot
+        in the default asyncio event loop
+        '''
+        loop = asyncio.get_event_loop()
+        task = asyncio.ensure_future(self.work())
+        try:
+            loop.run_until_complete(task)
+        except KeyboardInterrupt:
+            task.cancel()
+            loop.run_forever()
+            try:
+                task.exception()
+            except asyncio.CancelledError:
+                pass
+        finally:
+            loop.close()
