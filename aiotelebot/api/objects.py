@@ -205,6 +205,6 @@ Update = p('Update', {'update_id': int,
 APIResponse = p('APIResponse', {'ok': bool,
                                 'result': object})
 
-GetUpdatesResponse = p('GetUpdatesReponse', {'ok': bool,
-                                             'result': [Update]})
+GetUpdatesResponse = p('GetUpdatesResponse', {'ok': bool,
+                                             'result': [Use(Update)]})
 
