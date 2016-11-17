@@ -104,7 +104,7 @@ class TelegramBotCommandCore(TelegramBotCore):
                 if text.startswith('/'):
                     try:
                         self._log.debug('command lookup: {}'.format(text[1:]))
-                        cmd_gen = self.get_command(text[1:])
+                        cmd_gen = self.get_command(text.split()[0][1:])
                         args = text.split()[1:]
                         if context is not None:
                             self._log.debug('closing existing context: {}'.format(context.__name__))
