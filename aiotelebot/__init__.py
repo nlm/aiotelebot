@@ -7,7 +7,8 @@ import collections
 from random import random
 from .api.objects import *
 from .api import TelegramBotApiClient, TelegramBotApiError
-from .core import TelegramBotCore
+from .core import TelegramBotCore, TelegramBotSimpleCommandCore
+
 
 class TelegramBot(object):
 
@@ -17,7 +18,8 @@ class TelegramBot(object):
         '''
         self._log = logging.getLogger(__name__)
         self._client = TelegramBotApiClient(token)
-        self._core = TelegramBotCore(self, self._client)
+        #self._core = TelegramBotCore(self, self._client)
+        self._core = TelegramBotSimpleCommandCore(self, self._client)
 
     @asyncio.coroutine
     def watch_updates(self):
@@ -32,6 +34,7 @@ class TelegramBot(object):
             # API Query
             try:
                 result = yield from self._client.getUpdates(update_id=update_id)
+                self._log.debug('got result')
             except TelegramBotApiError as err:
                 self._log.debug('query error ok={}'.format(result['ok']))
                 yield from asyncio.sleep(throttle)
@@ -57,7 +60,7 @@ class TelegramBot(object):
     @asyncio.coroutine
     def work(self):
         self._log.info('starting work')
-        yield from asyncio.wait([self.watch_updates()])
+        yield from asyncio.gather(self.watch_updates())
 
 #        self._chats = dict()
 #        self._help = dict()
