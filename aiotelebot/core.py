@@ -2,23 +2,24 @@ import asyncio
 import logging
 import inspect
 import re
+from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 from .api.objects import Update
 
 TelegramChat = namedtuple('TelegramChat', ['queue', 'handler'])
 
-class TelegramBotCore(object):
+class TelegramBotCore(object, metaclass=ABCMeta):
 
     default_queue_size = 10
 
-    def __init__(self, bot, api_client):
-        self.bot = bot
+    def __init__(self, api_client):
         self.api_client = api_client
         self._dispatcher = self.dispatcher()
         self._dispatcher.send(None)
         self._chats = {}
         self._log = logging.getLogger(__name__)
 
+    @abstractmethod
     @asyncio.coroutine
     def message_handler(self, queue):
         return NotImplementedError
@@ -75,10 +76,10 @@ class TelegramBotCore(object):
         yield from asyncio.sleep(0)
 
 
-class TelegramBotSimpleCommandCore(TelegramBotCore):
+class TelegramBotCommandCore(TelegramBotCore):
 
-    def __init__(self, bot, api_client):
-        TelegramBotCore.__init__(self, bot, api_client)
+    def __init__(self, api_client):
+        TelegramBotCore.__init__(self, api_client)
         self._log = logging.getLogger(__name__)
         # Init Commands
         self._commands = {}
@@ -102,6 +103,7 @@ class TelegramBotSimpleCommandCore(TelegramBotCore):
                 # New command
                 if text.startswith('/'):
                     try:
+                        self._log.debug('command lookup: {}'.format(text[1:]))
                         cmd_gen = self.get_command(text[1:])
                         args = text.split()[1:]
                         if context is not None:
