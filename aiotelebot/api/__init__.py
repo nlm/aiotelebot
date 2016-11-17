@@ -46,9 +46,11 @@ class TelegramBotApiClient(object):
     # TODO: enhance these so they return Telegram objects
     # instead of just the json-parsed data
 
+    @asyncio.coroutine
     def getMe(self):
         return (yield from self.query('GET', 'getMe'))
 
+    @asyncio.coroutine
     def getUpdates(self, *, update_id=0, timeout=600, limit=100):
         data = yield from self.query('GET', 'getUpdates',
                                       params={'timeout': timeout,
@@ -56,6 +58,7 @@ class TelegramBotApiClient(object):
                                               'offset': update_id})
         return GetUpdatesResponse(data)
 
+    @asyncio.coroutine
     def sendMessage(self, chat_id, text, *, parse_mode=None,
                     disable_web_page_preview=False,
                     disable_notification=False,
