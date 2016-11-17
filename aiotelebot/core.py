@@ -107,8 +107,10 @@ class TelegramBotCommandCore(TelegramBotCore):
                         cmd_gen = self.get_command(text[1:])
                         args = text.split()[1:]
                         if context is not None:
+                            self._log.debug('closing existing context: {}'.format(context.__name__))
                             context.close()
                         context = cmd_gen(args)
+                        self._log.debug('starting new context: {}'.format(context.__name__))
                         yield from self.api_client.sendMessage(chat_id, next(context))
                     except KeyError:
                         yield from self.api_client.sendMessage(chat_id, 'unknown command')
@@ -124,9 +126,9 @@ class TelegramBotCommandCore(TelegramBotCore):
                         context = cmd_gen(args)
                         yield from self.api_client.sendMessage(chat_id, next(context))
                     except KeyError:
-                        pass
+                        self._log.debug('no default command defined, discarding message')
             except StopIteration as stopiter:
-                self._log.debug('end of command {}'.format(context))
+                self._log.debug('end of context: {}'.format(context.__name__))
                 context = None
                 yield from self.api_client.sendMessage(chat_id, stopiter.value)
 
