@@ -48,7 +48,8 @@ class TelegramBotApiClient(object):
 
     @asyncio.coroutine
     def getMe(self):
-        return (yield from self.query('GET', 'getMe'))
+        data = yield from self.query('GET', 'getMe')
+        return GetMeResponse(data)
 
     @asyncio.coroutine
     def getUpdates(self, *, update_id=0, timeout=600, limit=100):

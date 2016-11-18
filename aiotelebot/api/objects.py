@@ -9,7 +9,7 @@ from https://core.telegram.org/bots/api#available-types
 User = p('User', {'id': int,
                   'first_name': str,
                   Optional('last_name'): str,
-                  Optional('user_name'): str})
+                  Optional('username'): str})
 
 Chat = p('Chat', {'id': int,
                   'type': str,
@@ -208,3 +208,4 @@ APIResponse = p('APIResponse', {'ok': bool,
 GetUpdatesResponse = p('GetUpdatesResponse', {'ok': bool,
                                              'result': [Use(Update)]})
 
+GetMeResponse = p('GetMeResponse', {'ok': bool, 'result': Use(User)})
