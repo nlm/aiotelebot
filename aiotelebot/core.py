@@ -87,9 +87,20 @@ class TelegramBotCommandCore(TelegramBotCore):
         for name, function in self.get_commands():
             self.register_command(name, function)
 
+    def _extract_command(self, text):
+        if not text.startswith('/'):
+            return (None, None)
+        parts = (text.split()[0][1:]).split('@', maxsplit=1)
+        if len(parts) > 1:
+            return parts
+        else:
+            return (parts[0], None)
+
     @asyncio.coroutine
     def message_handler(self, queue):
         context = None
+        me = (yield from self.api_client.getMe())['result']
+        self._log.debug(me)
         while True:
             message = yield from queue.get()
             self._log.info('handling {}'.format(message))
@@ -103,8 +114,13 @@ class TelegramBotCommandCore(TelegramBotCore):
                 # New command
                 if text.startswith('/'):
                     try:
-                        self._log.debug('command lookup: {}'.format(text[1:]))
-                        cmd_gen = self.get_command(text.split()[0][1:])
+                        cmd, target = self._extract_command(text)
+                        self._log.debug('command={}, target={}'.format(cmd, target))
+                        if target is not None and target != me.get('username', None):
+                            self._log.debug('not a target for command {}'.format(cmd))
+                            continue
+                        self._log.debug('command lookup: {}'.format(cmd))
+                        cmd_gen = self.get_command(cmd)
                         args = text.split()[1:]
                         if context is not None:
                             self._log.debug('closing existing context: {}'.format(context.__name__))
